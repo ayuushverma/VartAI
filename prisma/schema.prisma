@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String         @id @default(cuid())
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  conversations Conversation[]
+}
+
+model Conversation {
+  id                String             @id @default(cuid())
+  userId            String
+  scenario          String
+  startedAt         DateTime           @default(now())
+  endedAt           DateTime?
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages          Message[]
+  sessionEvaluation SessionEvaluation?
+  mistakes          Mistake[]
+  vocabulary        Vocabulary[]
+
+  @@index([userId])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  role           String
+  content        String
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  mistakes       Mistake[]
+
+  @@index([conversationId])
+}
+
+model SessionEvaluation {
+  id              String       @id @default(cuid())
+  conversationId  String       @unique
+  fluency         Int
+  grammar         Int
+  vocabulary      Int
+  communication   Int
+  strengths       String[]
+  areasToImprove  String[]
+  recommendations String[]
+  createdAt       DateTime     @default(now())
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+model Mistake {
+  id             String       @id @default(cuid())
+  conversationId String
+  messageId      String?
+  original       String
+  correction     String
+  explanation    String
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  message        Message?     @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId])
+  @@index([messageId])
+}
+
+model Vocabulary {
+  id             String       @id @default(cuid())
+  conversationId String
+  word           String
+  meaning        String
+  example        String
+  createdAt      DateTime     @default(now())
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+}
