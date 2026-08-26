@@ -82,7 +82,7 @@ function FeedbackPanel({ feedback }: { feedback: LearningFeedback }) {
       ))}
 
       {feedback.vocabulary.map((item) => (
-        <div className="mt-3" key={item.word}>
+        <div className="mt-3" key={`${item.word}-${item.meaning}`}>
           <p className="font-medium text-white">{item.word}</p>
           <p className="text-slate-400">{item.meaning}</p>
           <p className="mt-1 text-slate-400">{item.example}</p>

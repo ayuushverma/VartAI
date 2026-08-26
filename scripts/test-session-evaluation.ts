@@ -1,12 +1,14 @@
-import "dotenv/config";
-import { getDevelopmentUser } from "@/lib/developmentUser";
-import { db } from "@/lib/db";
-import {
-  getSessionEvaluationByConversationId,
-  persistSessionEvaluation,
-} from "@/lib/sessionEvaluation";
+import { config } from "dotenv";
+config({ path: ".env.local" });
+config();
 
 async function main() {
+  const { getDevelopmentUser } = await import("@/lib/developmentUser");
+  const { db } = await import("@/lib/db");
+  const {
+    getSessionEvaluationByConversationId,
+    persistSessionEvaluation,
+  } = await import("@/lib/sessionEvaluation");
   const user = await getDevelopmentUser();
   const conversation = await db.conversation.create({
     data: {

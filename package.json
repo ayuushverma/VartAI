@@ -16,7 +16,9 @@
     "test:rag-retrieval": "tsx scripts/test-rag-retrieval.ts",
     "test:learning-tools": "tsx scripts/test-learning-tools.ts",
     "test:gamification": "tsx scripts/test-gamification.ts",
-    "test:auth-validation": "tsx scripts/test-auth-validation.ts"
+    "test:auth-validation": "tsx scripts/test-auth-validation.ts",
+    "test:rate-limit": "tsx scripts/test-rate-limit.ts",
+    "test:ownership": "tsx scripts/test-ownership.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",

@@ -78,11 +78,16 @@ model Message {
   conversationId String
   role           String
   content        String
+  clientRequestId String?     @unique
+  replyToRequestId String?
+  feedback       Json?
+  processing      Boolean      @default(false)
   createdAt      DateTime     @default(now())
   conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   mistakes       Mistake[]
 
   @@index([conversationId])
+  @@index([conversationId, replyToRequestId])
 }
 
 model SessionEvaluation {

@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { auth } from "@/auth";
-import { getCurrentUserId } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { getGamificationSummary } from "@/lib/gamification";
+import { LandingPage } from "@/app/_components/LandingPage";
 
 export const dynamic = "force-dynamic";
 
@@ -15,8 +15,13 @@ const navigation = [
 
 export default async function Home() {
   const session = await auth();
-  const latestSession = await getLatestSession();
-  const gamification = await getHomeGamification();
+  if (!session) return <LandingPage />;
+
+  const userId = session?.user?.id;
+  const [latestSession, gamification] = await Promise.all([
+    getLatestSession(userId),
+    getHomeGamification(userId),
+  ]);
 
   return (
     <main className="v-page text-white">
@@ -132,9 +137,8 @@ function Metric({ label, value, detail }: { label: string; value: string; detail
   return <div><p className="text-sm text-slate-400">{label}</p><p className="mt-2 text-3xl font-semibold text-[var(--blue)]">{value}</p><p className="mt-1 text-xs text-slate-500">{detail}</p></div>;
 }
 
-async function getLatestSession() {
+async function getLatestSession(userId?: string) {
   try {
-    const userId = await getCurrentUserId();
     if (!userId) return null;
     return await db.conversation.findFirst({
       where: { userId },
@@ -147,9 +151,8 @@ async function getLatestSession() {
   }
 }
 
-async function getHomeGamification() {
+async function getHomeGamification(userId?: string) {
   try {
-    const userId = await getCurrentUserId();
     if (!userId) throw new Error("Not signed in");
     return await getGamificationSummary(userId, "UTC");
   } catch (error) {

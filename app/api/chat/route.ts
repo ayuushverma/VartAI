@@ -17,20 +17,23 @@ import {
   maxLearningToolCallsPerRequest,
 } from "@/lib/agent/tools/learningTools";
 import { responseLearningTools } from "@/lib/agent/tools/responseTools";
+import { scenarios } from "@/lib/scenarios";
+import { checkRateLimit, rateLimitKey } from "@/lib/rateLimit";
 
 const chatRequestSchema = z.object({
   conversationId: z.string().cuid(),
-  scenario: z.string().min(1).max(120),
+  requestId: z.string().uuid(),
+  scenario: z.enum(scenarios.map((scenario) => scenario.id) as [string, ...string[]]),
   messages: z
     .array(
       z.object({
         role: z.enum(["user", "assistant"]),
         content: z.string().min(1).max(4000),
-      }),
+      }).strict(),
     )
     .min(1)
     .max(30),
-});
+    }).strict();
 
 const learningFeedbackSchema = z.object({
   message: z
@@ -40,25 +43,28 @@ const learningFeedbackSchema = z.object({
     grammar: z
       .array(
         z.object({
-          original: z.string().describe("The user's original phrase."),
-          correction: z.string().describe("A corrected version of the phrase."),
+          original: z.string().max(400).describe("The user's original phrase."),
+          correction: z.string().max(400).describe("A corrected version of the phrase."),
           explanation: z
-            .string()
+            .string().max(800)
             .describe("A short, learner-friendly explanation."),
         }),
       )
+      .max(10)
       .describe("Only useful grammar corrections from the latest user message."),
     vocabulary: z
       .array(
         z.object({
-          word: z.string().describe("A useful word or phrase for the learner."),
-          meaning: z.string().describe("A simple meaning for the word."),
-          example: z.string().describe("A short example sentence."),
+          word: z.string().max(120).describe("A useful word or phrase for the learner."),
+          meaning: z.string().max(400).describe("A simple meaning for the word."),
+          example: z.string().max(400).describe("A short example sentence."),
         }),
       )
+      .max(10)
       .describe("Helpful vocabulary opportunities from the conversation."),
     fluency_notes: z
-      .array(z.string())
+      .array(z.string().max(400))
+      .max(10)
       .describe("Brief notes that help the learner sound more natural."),
   }),
 });
@@ -80,6 +86,8 @@ Do not turn every conversation into an analysis.`;
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
+  maxRetries: 1,
+  timeout: 30_000,
 });
 
 export async function POST(request: Request) {
@@ -100,11 +108,15 @@ export async function POST(request: Request) {
     );
   }
 
-  const { conversationId, messages, scenario } = parsedRequest.data;
+  const { conversationId, messages, requestId, scenario } = parsedRequest.data;
 
   try {
     const userId = await getCurrentUserId();
     if (!userId) return Response.json({ error: "You must be signed in." }, { status: 401 });
+    const rateLimit = await checkRateLimit({ key: rateLimitKey("chat", userId), limit: 20, windowSeconds: 600 });
+    if (!rateLimit.allowed) {
+      return Response.json({ error: rateLimit.configured ? "VartAI is temporarily busy. Please try again shortly." : "Chat rate limiting is not configured for production." }, { status: rateLimit.configured ? 429 : 503, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } });
+    }
     const conversation = await db.conversation.findFirst({
       where: { id: conversationId, userId },
       select: { id: true },
@@ -112,6 +124,23 @@ export async function POST(request: Request) {
 
     if (!conversation) {
       return Response.json({ error: "Conversation not found." }, { status: 404 });
+    }
+
+    const existingUserMessage = await db.message.findFirst({
+      where: { clientRequestId: requestId, conversationId, role: "user" },
+      select: { id: true },
+    });
+    if (existingUserMessage) {
+      const existingAssistantMessage = await db.message.findFirst({
+        where: { conversationId, replyToRequestId: requestId, role: "assistant" },
+        select: { content: true, feedback: true },
+      });
+      if (existingAssistantMessage) {
+        const feedback = learningFeedbackSchema.shape.feedback.safeParse(existingAssistantMessage.feedback);
+        return Response.json({ message: existingAssistantMessage.content, feedback: feedback.success ? feedback.data : { grammar: [], vocabulary: [], fluency_notes: [] }, role: "assistant" });
+      }
+      const claim = await db.message.updateMany({ where: { id: existingUserMessage.id, processing: false }, data: { processing: true } });
+      if (claim.count === 0) return Response.json({ error: "This message is already being processed. Please retry shortly." }, { status: 409 });
     }
 
     const learnerProfile = await getLearnerProfile(userId);
@@ -149,6 +178,8 @@ export async function POST(request: Request) {
         conversationId,
         role: "user",
         content: latestMessage.content,
+        clientRequestId: requestId,
+        processing: true,
       },
     });
 
@@ -184,6 +215,9 @@ export async function POST(request: Request) {
         conversationId,
         role: "assistant",
         content: parsedResponse.data.message,
+        replyToRequestId: requestId,
+        feedback: parsedResponse.data.feedback,
+        processing: false,
       },
     });
 
@@ -193,6 +227,7 @@ export async function POST(request: Request) {
       role: "assistant",
     });
   } catch (error) {
+    await db.message.updateMany({ where: { conversationId, clientRequestId: requestId, role: "user" }, data: { processing: false } }).catch(() => undefined);
     console.error("OpenAI chat request failed:", error);
 
     return Response.json(

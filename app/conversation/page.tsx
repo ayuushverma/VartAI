@@ -138,6 +138,7 @@ function ConversationPageContent() {
       text: trimmedMessage,
     };
     const nextMessages = [...messages, userMessage];
+    const requestId = crypto.randomUUID();
 
     setMessages(nextMessages);
     setDraftMessage("");
@@ -160,6 +161,7 @@ function ConversationPageContent() {
         body: JSON.stringify({
           scenario: selectedScenario,
           conversationId: activeConversationId,
+          requestId,
           messages: nextMessages.map((message) => ({
             role: message.role,
             content: message.text,
@@ -224,6 +226,8 @@ function ConversationPageContent() {
 
   function sendCurrentMessage() {
     speechRecognition.stopListening();
+    speechRecognition.clearError();
+    speechSynthesis.clearError();
     void sendMessage();
   }
 
@@ -310,6 +314,7 @@ function ConversationPageContent() {
       <section className="v-shell mx-auto flex min-h-[calc(100vh-3rem)] max-w-7xl flex-col overflow-hidden">
         <ConversationHeader
           isEnding={isEnding}
+          isStarting={isStarting}
           onEndConversation={endConversation}
           scenario={selectedScenario}
         />

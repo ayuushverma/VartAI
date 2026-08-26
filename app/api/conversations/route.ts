@@ -1,10 +1,11 @@
 import { z } from "zod";
 import { getCurrentUserId } from "@/lib/currentUser";
 import { db } from "@/lib/db";
+import { scenarios } from "@/lib/scenarios";
 
 const createConversationSchema = z.object({
-  scenario: z.string().min(1).max(120),
-});
+  scenario: z.enum(scenarios.map((scenario) => scenario.id) as [string, ...string[]]),
+}).strict();
 
 const initialGreeting = "Hey! Let's practice English. Tell me about yourself.";
 

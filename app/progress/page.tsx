@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getCurrentUserId } from "@/lib/currentUser";
+import { auth } from "@/auth";
 import { db } from "@/lib/db";
 import { getGamificationSummary, GamificationSummary } from "@/lib/gamification";
 import { PageNavigation } from "@/app/_components/PageNavigation";
@@ -15,7 +15,8 @@ const scoreLabels: { key: ScoreKey; label: string }[] = [
 ];
 
 export default async function ProgressPage() {
-  const data = await getProgressData();
+  const session = await auth();
+  const data = await getProgressData(session?.user?.id);
   const averageScores = data.averageScores;
   return (
     <main className="v-page text-white">
@@ -49,14 +50,15 @@ function Summary({ label, value }: { label: string; value: string }) { return <a
 function GamificationPanel({ gamification }: { gamification: GamificationSummary }) { return <section className="v-card space-y-5 p-5"><div className="grid gap-4 sm:grid-cols-3"><div><p className="text-sm text-slate-400">Learning XP</p><p className="mt-2 text-3xl font-semibold text-[var(--blue)]">{gamification.xp}</p></div><div><p className="text-sm text-slate-400">Daily goal</p><p className="mt-2 text-3xl font-semibold text-[var(--blue)]">{gamification.todayProgress}/{gamification.dailyGoal}</p></div><div><p className="text-sm text-slate-400">Current streak</p><p className="mt-2 text-3xl font-semibold text-[var(--blue)]">{gamification.currentStreak} {gamification.currentStreak === 1 ? "day" : "days"}</p></div></div><div><h2 className="text-base font-semibold">Milestones</h2><div className="mt-3 grid gap-3 sm:grid-cols-2">{gamification.milestones.map((milestone) => <div className="rounded-xl border border-white/10 bg-white/[0.03] p-4" key={milestone.id}><div className="flex items-center justify-between gap-3"><p className="text-sm font-medium">{milestone.title}</p><span className="text-xs text-slate-400">{milestone.progress}/{milestone.target}</span></div><p className="mt-2 text-xs leading-5 text-slate-400">{milestone.description}</p></div>)}</div></div><div><h2 className="text-base font-semibold">Achievements</h2><div className="mt-3 flex flex-wrap gap-2">{gamification.achievements.map((achievement) => <span className={`rounded-full px-3 py-2 text-xs font-semibold ${achievement.unlocked ? "bg-[var(--lime)] text-[#151b0b]" : "bg-white/10 text-slate-400"}`} key={achievement.id}>{achievement.unlocked ? "Unlocked: " : "Locked: "}{achievement.title}</span>)}</div></div></section>; }
 function EmptyState({ message }: { message: string }) { return <div className="p-5 sm:p-8"><section className="v-card p-8 text-center"><h2 className="v-display text-2xl font-semibold">No progress to show</h2><p className="mx-auto mt-3 max-w-md text-sm leading-6 text-slate-400">{message}</p><Link className="v-button mt-6 inline-block px-5 py-3 text-sm font-semibold text-[#1b1110]" href="/practice">Start practicing</Link></section></div>; }
 
-async function getProgressData() {
+async function getProgressData(userId?: string) {
   try {
-    const userId = await getCurrentUserId();
     if (!userId) throw new Error("Not signed in");
-    const sessions = await db.conversation.findMany({ where: { userId }, orderBy: { startedAt: "desc" }, select: { id: true, scenario: true, startedAt: true, sessionEvaluation: { select: { fluency: true, grammar: true, vocabulary: true, communication: true, createdAt: true } } } });
+    const [sessions, gamification] = await Promise.all([
+      db.conversation.findMany({ where: { userId }, orderBy: { startedAt: "desc" }, select: { id: true, scenario: true, startedAt: true, sessionEvaluation: { select: { fluency: true, grammar: true, vocabulary: true, communication: true, createdAt: true } } } }),
+      getGamificationSummary(userId, "UTC"),
+    ]);
     const evaluations = sessions.flatMap((session) => session.sessionEvaluation ? [session.sessionEvaluation] : []);
     const averageScores = evaluations.length > 0 ? scoreLabels.reduce((averages, { key }) => ({ ...averages, [key]: Math.round(evaluations.reduce((sum, evaluation) => sum + evaluation[key], 0) / evaluations.length) }), {} as Record<ScoreKey, number>) : null;
-    const gamification = await getGamificationSummary(userId, "UTC");
     return { error: false, averageScores, gamification, sessions: sessions.map((session) => ({ id: session.id, scenario: session.scenario, hasEvaluation: Boolean(session.sessionEvaluation), createdAt: session.sessionEvaluation?.createdAt ?? session.startedAt })) };
   } catch (error) {
     console.error("Progress data retrieval failed:", error);

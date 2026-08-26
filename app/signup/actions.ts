@@ -2,11 +2,16 @@
 
 import { hash } from "bcryptjs";
 import { AuthError } from "next-auth";
+import { headers } from "next/headers";
 import { signIn } from "@/auth";
 import { db } from "@/lib/db";
 import { signupSchema } from "@/lib/authValidation";
+import { checkRateLimit, getForwardedIp, rateLimitKey } from "@/lib/rateLimit";
 
 export async function signupAction(_previousState: string, formData: FormData) {
+  const requestHeaders = await headers();
+  const rateLimit = await checkRateLimit({ key: rateLimitKey("signup", getForwardedIp(requestHeaders.get("x-forwarded-for"))), limit: 5, windowSeconds: 3600 });
+  if (!rateLimit.allowed) return "Too many account-creation attempts. Please try again later.";
   const parsed = signupSchema.safeParse({
     name: formData.get("name"),
     email: formData.get("email"),

@@ -5,35 +5,37 @@ import { getCurrentUserId } from "@/lib/currentUser";
 import { db } from "@/lib/db";
 import { persistSessionEvaluation } from "@/lib/sessionEvaluation";
 import { getEarnedSessionXp } from "@/lib/gamification";
+import { scenarios } from "@/lib/scenarios";
+import { checkRateLimit, rateLimitKey } from "@/lib/rateLimit";
 
 const evaluateRequestSchema = z.object({
   conversationId: z.string().cuid(),
-  scenario: z.string().min(1).max(120),
+  scenario: z.enum(scenarios.map((scenario) => scenario.id) as [string, ...string[]]),
   messages: z
     .array(
       z.object({
         role: z.enum(["user", "assistant"]),
         content: z.string().min(1).max(4000),
-      }),
+      }).strict(),
     )
     .min(1)
     .max(50),
   learning: z.object({
     grammar: z.array(
       z.object({
-        original: z.string().min(1),
-        correction: z.string().min(1),
-        explanation: z.string().min(1),
-      }),
-    ),
+        original: z.string().min(1).max(400),
+        correction: z.string().min(1).max(400),
+        explanation: z.string().min(1).max(800),
+      }).strict(),
+    ).max(100),
     vocabulary: z.array(
       z.object({
-        word: z.string().min(1),
-        meaning: z.string().min(1),
-        example: z.string().min(1),
-      }),
-    ),
-  }),
+        word: z.string().min(1).max(120),
+        meaning: z.string().min(1).max(400),
+        example: z.string().min(1).max(400),
+      }).strict(),
+    ).max(100),
+  }).strict(),
 });
 
 const scoreSchema = z
@@ -51,13 +53,16 @@ const sessionEvaluationSchema = z.object({
     communication: scoreSchema,
   }),
   strengths: z
-    .array(z.string())
+    .array(z.string().max(400))
+    .max(10)
     .describe("Concise strengths shown by the learner."),
   areas_to_improve: z
-    .array(z.string())
+    .array(z.string().max(400))
+    .max(10)
     .describe("Concise language areas the learner can improve."),
   recommendations: z
-    .array(z.string())
+    .array(z.string().max(400))
+    .max(10)
     .describe("Actionable next practice recommendations."),
 });
 
@@ -75,6 +80,8 @@ Keep feedback concise and useful.`;
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
+  maxRetries: 1,
+  timeout: 30_000,
 });
 
 export async function POST(request: Request) {
@@ -110,6 +117,10 @@ export async function POST(request: Request) {
   try {
     const userId = await getCurrentUserId();
     if (!userId) return Response.json({ error: "You must be signed in." }, { status: 401 });
+    const rateLimit = await checkRateLimit({ key: rateLimitKey("evaluate", userId), limit: 5, windowSeconds: 600 });
+    if (!rateLimit.allowed) {
+      return Response.json({ error: rateLimit.configured ? "VartAI is temporarily busy. Please try again shortly." : "Evaluation rate limiting is not configured for production." }, { status: rateLimit.configured ? 429 : 503, headers: { "Retry-After": String(rateLimit.retryAfterSeconds) } });
+    }
     const conversation = await db.conversation.findFirst({
       where: { id: conversationId, userId },
       select: { id: true },

@@ -16,6 +16,12 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Production requirements
+
+Before deployment, rotate any credentials that have been placed in local environment files and configure fresh production values for `AUTH_SECRET`, `DATABASE_URL`, `OPENAI_API_KEY`, and Google OAuth credentials. Local `.env*` files are ignored by Git, but they must still be protected on developer machines and CI systems.
+
+The AI routes use an Upstash Redis REST limiter when `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` are configured. Starting limits are 20 chat requests per 10 minutes and 5 evaluations per 10 minutes per authenticated user. Login is limited to 10 attempts per 10 minutes per forwarded IP; signup is limited to 5 attempts per hour per forwarded IP. Missing configuration is development-only fallback behavior; production fails closed with `503`. Configure the shared limiter before public launch.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

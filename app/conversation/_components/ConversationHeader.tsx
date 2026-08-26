@@ -2,12 +2,14 @@ import { PageNavigation } from "@/app/_components/PageNavigation";
 
 type ConversationHeaderProps = {
   isEnding?: boolean;
+  isStarting?: boolean;
   onEndConversation: () => void;
   scenario: string;
 };
 
 export function ConversationHeader({
   isEnding = false,
+  isStarting = false,
   onEndConversation,
   scenario,
 }: ConversationHeaderProps) {
@@ -24,7 +26,7 @@ export function ConversationHeader({
         <PageNavigation />
         <button
           className="v-button-secondary w-full min-h-11 px-4 py-3 text-sm font-semibold text-slate-200 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
-          disabled={isEnding}
+          disabled={isEnding || isStarting}
           onClick={onEndConversation}
           type="button"
         >

@@ -54,6 +54,7 @@ export function ChatInput({
 
       <div className="flex flex-col gap-3 sm:flex-row">
         <input
+          aria-label={mode === "voice" ? "Review your voice transcript" : "Type your reply"}
           className="min-w-0 flex-1 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-3 text-sm text-white outline-none transition placeholder:text-slate-500 focus:border-[var(--blue)]"
           disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
@@ -85,7 +86,7 @@ export function ChatInput({
       {mode === "voice" && !isVoiceSupported ? (
         <p className="mt-3 text-xs text-slate-400">Voice input isn&apos;t supported in this browser. You can still type.</p>
       ) : null}
-      {mode === "voice" && voiceError ? <p className="mt-3 text-xs text-red-200">{voiceError}</p> : null}
+      {mode === "voice" && voiceError ? <p className="mt-3 text-xs text-red-200" role="alert">{voiceError}</p> : null}
     </form>
   );
 }
