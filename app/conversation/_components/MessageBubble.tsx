@@ -6,8 +6,7 @@ export type LearningFeedback = {
   }[];
   vocabulary: {
     word: string;
-    meaning: string;
-    example: string;
+    meaning: string;example: string;
   }[];
   fluency_notes: string[];
 };
@@ -20,25 +19,38 @@ export type Message = {
 };
 
 type MessageBubbleProps = {
+  isSpeaking?: boolean;
   message: Message;
+  onSpeak?: (text: string) => void;
 };
 
-export function MessageBubble({ message }: MessageBubbleProps) {
+export function MessageBubble({ isSpeaking = false, message, onSpeak }: MessageBubbleProps) {
   const isUser = message.role === "user";
 
   return (
     <div
-      className={`flex flex-col ${isUser ? "items-end" : "items-start"}`}
+      className={`v-fade-up flex flex-col ${isUser ? "items-end" : "items-start"}`}
     >
       <div
         className={`max-w-[85%] rounded-lg px-4 py-3 text-sm leading-6 sm:max-w-[70%] ${
           isUser
-            ? "bg-[#4f8cff] text-white"
-            : "border border-white/10 bg-white/[0.05] text-slate-200"
+            ? "bg-[var(--blue)] text-[#071018] shadow-lg shadow-[var(--blue)]/10"
+            : "border border-white/10 bg-white/[0.06] text-slate-200"
         }`}
       >
         {message.text}
       </div>
+
+      {!isUser && onSpeak ? (
+        <button
+          aria-label={isSpeaking ? "Stop speaking" : "Speak message aloud"}
+          className="v-button-secondary mt-2 px-3 py-2 text-xs font-medium text-slate-300 hover:text-white"
+          onClick={() => onSpeak(message.text)}
+          type="button"
+        >
+          {isSpeaking ? "Speaking..." : "Speak"}
+        </button>
+      ) : null}
 
       {!isUser && message.feedback ? (
         <FeedbackPanel feedback={message.feedback} />
@@ -58,8 +70,8 @@ function FeedbackPanel({ feedback }: { feedback: LearningFeedback }) {
   }
 
   return (
-    <div className="mt-2 max-w-[85%] rounded-lg border border-[#f7d77a]/20 bg-[#f7d77a]/10 p-4 text-sm text-slate-200 sm:max-w-[70%]">
-      <p className="font-semibold text-[#f7d77a]">Feedback</p>
+    <div className="mt-2 max-w-[85%] rounded-xl border border-[rgba(197,232,108,.2)] bg-[rgba(197,232,108,.08)] p-4 text-sm text-slate-200 sm:max-w-[70%]">
+      <p className="font-semibold text-[var(--lime)]">Feedback</p>
 
       {feedback.grammar.map((item) => (
         <div className="mt-3" key={`${item.original}-${item.correction}`}>

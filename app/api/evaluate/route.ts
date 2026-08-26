@@ -1,8 +1,13 @@
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
 import { z } from "zod";
+import { getCurrentUserId } from "@/lib/currentUser";
+import { db } from "@/lib/db";
+import { persistSessionEvaluation } from "@/lib/sessionEvaluation";
+import { getEarnedSessionXp } from "@/lib/gamification";
 
 const evaluateRequestSchema = z.object({
+  conversationId: z.string().cuid(),
   scenario: z.string().min(1).max(120),
   messages: z
     .array(
@@ -13,6 +18,22 @@ const evaluateRequestSchema = z.object({
     )
     .min(1)
     .max(50),
+  learning: z.object({
+    grammar: z.array(
+      z.object({
+        original: z.string().min(1),
+        correction: z.string().min(1),
+        explanation: z.string().min(1),
+      }),
+    ),
+    vocabulary: z.array(
+      z.object({
+        word: z.string().min(1),
+        meaning: z.string().min(1),
+        example: z.string().min(1),
+      }),
+    ),
+  }),
 });
 
 const scoreSchema = z
@@ -74,7 +95,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const { messages, scenario } = parsedRequest.data;
+  const { conversationId, learning, messages, scenario } = parsedRequest.data;
   const userMessageCount = messages.filter(
     (message) => message.role === "user",
   ).length;
@@ -87,6 +108,17 @@ export async function POST(request: Request) {
   }
 
   try {
+    const userId = await getCurrentUserId();
+    if (!userId) return Response.json({ error: "You must be signed in." }, { status: 401 });
+    const conversation = await db.conversation.findFirst({
+      where: { id: conversationId, userId },
+      select: { id: true },
+    });
+
+    if (!conversation) {
+      return Response.json({ error: "Conversation not found." }, { status: 404 });
+    }
+
     const response = await openai.responses.parse({
       model: "gpt-5.5",
       instructions: `${evaluationInstruction}\n\nSelected practice scenario: ${scenario}`,
@@ -109,7 +141,28 @@ export async function POST(request: Request) {
       );
     }
 
-    return Response.json(parsedEvaluation.data);
+    try {
+      await persistSessionEvaluation({
+        conversationId: conversation.id,
+        scores: parsedEvaluation.data.scores,
+        strengths: parsedEvaluation.data.strengths,
+        areasToImprove: parsedEvaluation.data.areas_to_improve,
+        recommendations: parsedEvaluation.data.recommendations,
+        learning,
+      });
+    } catch (error) {
+      console.error("Session evaluation persistence failed:", error);
+      return Response.json(
+        { error: "VartAI could not save this session evaluation." },
+        { status: 500 },
+      );
+    }
+
+    return Response.json({
+      ...parsedEvaluation.data,
+      conversationId: conversation.id,
+      earnedXp: getEarnedSessionXp(learning.grammar.length, learning.vocabulary.length),
+    });
   } catch (error) {
     console.error("OpenAI evaluation request failed:", error);
 

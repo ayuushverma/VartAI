@@ -6,13 +6,28 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "db:generate": "prisma generate",
+    "db:validate": "prisma validate",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "db:test-session-evaluation": "tsx scripts/test-session-evaluation.ts",
+    "test:learner-profile": "tsx scripts/test-learner-profile.ts",
+    "test:rag-retrieval": "tsx scripts/test-rag-retrieval.ts",
+    "test:learning-tools": "tsx scripts/test-learning-tools.ts",
+    "test:gamification": "tsx scripts/test-gamification.ts",
+    "test:auth-validation": "tsx scripts/test-auth-validation.ts"
   },
   "dependencies": {
+    "@auth/prisma-adapter": "^2.11.3",
+    "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
     "@tanstack/react-query": "^5.101.4",
+    "bcryptjs": "^3.0.3",
     "next": "16.3.2",
+    "next-auth": "^5.0.0-beta.32",
     "openai": "^7.5.0",
+    "pg": "^8.16.3",
     "prisma": "^7.9.1",
     "react": "19.2.8",
     "react-dom": "19.2.8",
@@ -21,12 +36,14 @@
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.3.2",
     "tailwindcss": "^4",
+    "tsx": "^4.20.3",
     "typescript": "^5"
   }
 }

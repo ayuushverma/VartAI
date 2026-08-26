@@ -1,8 +1,19 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0b0d12;
+  --foreground: #f7f4ed;
+  --ink: #0b0d12;
+  --surface: #121720;
+  --surface-raised: #171d28;
+  --surface-soft: rgba(255, 255, 255, 0.055);
+  --line: rgba(255, 255, 255, 0.12);
+  --muted: #9ba5b5;
+  --blue: #63a7ff;
+  --coral: #ff806b;
+  --lime: #c5e86c;
+  --cream: #f7f4ed;
+  --radius: 16px;
 }
 
 @theme inline {
@@ -12,15 +23,165 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), sans-serif;
+  background-image: radial-gradient(circle at 8% 0%, rgba(99, 167, 255, 0.14), transparent 30rem), radial-gradient(circle at 92% 10%, rgba(255, 128, 107, 0.1), transparent 26rem), linear-gradient(135deg, #0b0d12 0%, #10151e 48%, #0d1118 100%);
+}
+
+* {
+  border-color: var(--line);
+}
+
+button,
+a,
+input {
+  -webkit-tap-highlight-color: transparent;
+}
+
+a,
+button {
+  transition: transform 180ms ease, background-color 180ms ease, border-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
+}
+
+a:focus-visible,
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--lime);
+  outline-offset: 3px;
+}
+
+.v-page {
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.v-shell {
+  background: linear-gradient(145deg, rgba(23, 29, 40, 0.94), rgba(12, 16, 23, 0.96));
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.34), inset 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.v-panel {
+  background: rgba(10, 13, 18, 0.62);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.v-card {
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025));
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.v-card:hover {
+  border-color: rgba(197, 232, 108, 0.42);
+  transform: translateY(-3px);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.22);
+}
+
+.v-eyebrow {
+  color: var(--lime);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.v-display {
+  font-family: Georgia, "Times New Roman", serif;
+  letter-spacing: -0.035em;
+}
+
+.v-button {
+  background: var(--coral);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgba(255, 128, 107, 0.2);
+}
+
+.v-button:hover {
+  background: #ff967f;
+  box-shadow: 0 12px 26px rgba(255, 128, 107, 0.28);
+  transform: translateY(-1px);
+}
+
+.v-button:active,
+.v-card:active {
+  transform: translateY(1px);
+}
+
+.v-button-secondary {
+  background: rgba(255, 255, 255, 0.055);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+
+.v-button-secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+
+.v-auth-input {
+  width: 100%;
+  min-height: 48px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.055);
+  padding: 12px 14px;
+  color: var(--foreground);
+  outline: none;
+}
+
+.v-auth-input:focus {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 4px rgba(99, 167, 255, 0.1);
+}
+
+.v-stagger > * {
+  animation: v-fade-up 500ms both;
+}
+
+.v-stagger > *:nth-child(2) { animation-delay: 70ms; }
+.v-stagger > *:nth-child(3) { animation-delay: 140ms; }
+.v-stagger > *:nth-child(4) { animation-delay: 210ms; }
+.v-stagger > *:nth-child(5) { animation-delay: 280ms; }
+
+.v-speaking {
+  animation: v-speaking 1.5s ease-in-out infinite;
+}
+
+.v-listening {
+  animation: v-listening 1.2s ease-in-out infinite;
+}
+
+@keyframes v-fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes v-speaking {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(99, 167, 255, 0.2); }
+  50% { box-shadow: 0 0 0 12px rgba(99, 167, 255, 0.04); }
+}
+
+@keyframes v-listening {
+  0%, 100% { border-color: rgba(255, 128, 107, 0.45); }
+  50% { border-color: rgba(255, 128, 107, 1); box-shadow: 0 0 0 6px rgba(255, 128, 107, 0.08); }
+}
+
+@media (max-width: 640px) {
+  .v-page { padding: 12px; }
+  .v-shell { border-radius: 18px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
 }

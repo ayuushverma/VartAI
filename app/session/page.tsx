@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { useSessionEvaluationStore } from "@/lib/sessionEvaluationStore";
+import { Celebration } from "@/app/_components/Celebration";
+import { PageNavigation } from "@/app/_components/PageNavigation";
 
 const scoreLabels = [
   { key: "fluency", label: "Fluency" },
@@ -16,10 +18,13 @@ export default function SessionPage() {
 
   if (!evaluation) {
     return (
-      <main className="min-h-screen bg-[#07090c] px-5 py-6 text-white sm:px-8">
-        <section className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-4xl flex-col justify-center rounded-lg border border-white/10 bg-[#10141a] p-6 shadow-2xl shadow-black/30 sm:p-8">
-          <div className="text-xl font-bold tracking-tight">
-            Vart<span className="text-[#4f8cff]">AI</span>
+      <main className="v-page text-white">
+        <section className="v-shell mx-auto flex min-h-[calc(100vh-3rem)] max-w-4xl flex-col justify-center p-6 sm:p-8">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="text-xl font-bold tracking-tight">
+              Vart<span className="text-[#4f8cff]">AI</span>
+            </div>
+            <PageNavigation />
           </div>
           <h1 className="mt-8 text-3xl font-semibold tracking-tight">
             No session result yet
@@ -30,16 +35,10 @@ export default function SessionPage() {
           </p>
           <div className="mt-8 flex flex-col gap-3 sm:flex-row">
             <Link
-              className="rounded-md bg-[#4f8cff] px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-[#3e7bef]"
-              href="/conversation"
+              className="v-button px-5 py-3 text-center text-sm font-semibold text-[#1b1110]"
+              href="/practice"
             >
               Start conversation
-            </Link>
-            <Link
-              className="rounded-md border border-white/10 bg-white/[0.04] px-5 py-3 text-center text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]"
-              href="/"
-            >
-              Back to dashboard
             </Link>
           </div>
         </section>
@@ -48,25 +47,41 @@ export default function SessionPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#07090c] px-5 py-6 text-white sm:px-8">
-      <section className="mx-auto min-h-[calc(100vh-3rem)] max-w-7xl rounded-lg border border-white/10 bg-[#10141a] shadow-2xl shadow-black/30">
-        <header className="border-b border-white/10 px-5 py-5 sm:px-8">
+    <main className="v-page text-white">
+      <section className="v-shell mx-auto min-h-[calc(100vh-3rem)] max-w-7xl">
+        <header className="flex flex-col gap-5 border-b border-white/10 px-5 py-5 sm:flex-row sm:items-end sm:justify-between sm:px-8">
           <div className="text-xl font-bold tracking-tight">
             Vart<span className="text-[#4f8cff]">AI</span>
           </div>
-          <p className="mt-8 text-sm font-medium text-[#f7d77a]">
-            Session complete
-          </p>
-          <h1 className="mt-1 text-3xl font-semibold tracking-tight">
-            {scenario || "Daily Conversation"}
-          </h1>
+          <div className="flex flex-col gap-4 sm:items-end">
+            <PageNavigation />
+            <div className="sm:text-right">
+              <p className="v-eyebrow">Session complete</p>
+              <h1 className="mt-1 text-3xl font-semibold tracking-tight">
+                {scenario || "Daily Conversation"}
+              </h1>
+              {evaluation.earnedXp ? (
+                <p className="mt-4 text-sm font-semibold text-[var(--lime)]">
+                  +{evaluation.earnedXp} XP earned from this session
+                </p>
+              ) : null}
+            </div>
+          </div>
         </header>
 
         <div className="grid gap-4 p-5 sm:p-8 lg:grid-cols-[0.9fr_1.1fr]">
-          <section className="grid gap-4 sm:grid-cols-2">
+          {evaluation.earnedXp ? (
+            <div className="lg:col-span-2">
+              <Celebration
+                detail="Your completed evaluation added real learning progress."
+                label={`+${evaluation.earnedXp} XP earned`}
+              />
+            </div>
+          ) : null}
+          <section className="v-stagger grid gap-4 sm:grid-cols-2">
             {scoreLabels.map((score) => (
               <article
-                className="rounded-lg border border-white/10 bg-white/[0.03] p-5"
+                className="v-card p-5"
                 key={score.key}
               >
                 <p className="text-sm font-medium text-slate-400">
@@ -77,7 +92,7 @@ export default function SessionPage() {
                 </p>
                 <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
                   <div
-                    className="h-full rounded-full bg-[#4f8cff]"
+                    className="h-full rounded-full bg-[linear-gradient(90deg,var(--coral),var(--blue))]"
                     style={{ width: `${evaluation.scores[score.key]}%` }}
                   />
                 </div>
@@ -98,16 +113,10 @@ export default function SessionPage() {
 
             <div className="flex flex-col gap-3 pt-2 sm:flex-row">
               <Link
-                className="rounded-md bg-[#4f8cff] px-5 py-3 text-center text-sm font-semibold text-white transition hover:bg-[#3e7bef]"
-                href="/conversation"
+                className="v-button px-5 py-3 text-center text-sm font-semibold text-[#1b1110]"
+                href="/practice"
               >
                 Practice again
-              </Link>
-              <Link
-                className="rounded-md border border-white/10 bg-white/[0.04] px-5 py-3 text-center text-sm font-semibold text-slate-200 transition hover:bg-white/[0.08]"
-                href="/"
-              >
-                Back to dashboard
               </Link>
             </div>
           </section>
@@ -119,7 +128,7 @@ export default function SessionPage() {
 
 function ResultList({ items, title }: { items: string[]; title: string }) {
   return (
-    <article className="rounded-lg border border-white/10 bg-[#0c1015] p-5">
+    <article className="v-panel p-5">
       <h2 className="text-base font-semibold">{title}</h2>
       <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-400">
         {items.map((item) => (

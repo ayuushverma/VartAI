@@ -3,6 +3,7 @@
 import { create } from "zustand";
 
 export type SessionEvaluation = {
+  earnedXp?: number;
   scores: {
     fluency: number;
     grammar: number;
@@ -17,9 +18,11 @@ export type SessionEvaluation = {
 type SessionEvaluationState = {
   evaluation: SessionEvaluation | null;
   scenario: string;
+  conversationId: string | null;
   setSessionResult: (result: {
     evaluation: SessionEvaluation;
     scenario: string;
+    conversationId: string;
   }) => void;
   clearSessionResult: () => void;
 };
@@ -28,8 +31,10 @@ export const useSessionEvaluationStore = create<SessionEvaluationState>(
   (set) => ({
     evaluation: null,
     scenario: "",
-    setSessionResult: ({ evaluation, scenario }) =>
-      set({ evaluation, scenario }),
-    clearSessionResult: () => set({ evaluation: null, scenario: "" }),
+    conversationId: null,
+    setSessionResult: ({ evaluation, scenario, conversationId }) =>
+      set({ evaluation, scenario, conversationId }),
+    clearSessionResult: () =>
+      set({ evaluation: null, scenario: "", conversationId: null }),
   }),
 );

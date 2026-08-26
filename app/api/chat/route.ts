@@ -1,8 +1,25 @@
 import OpenAI from "openai";
 import { zodTextFormat } from "openai/helpers/zod";
+import type { ParsedResponseFunctionToolCall } from "openai/resources/responses/responses";
 import { z } from "zod";
+import { getCurrentUserId } from "@/lib/currentUser";
+import { db } from "@/lib/db";
+import {
+  buildPersonalizationContext,
+  formatPersonalizationContext,
+  getLearnerProfile,
+} from "@/lib/learnerProfile";
+import { formatRetrievedKnowledge } from "@/lib/rag/context";
+import { retrieveKnowledge } from "@/lib/rag/retrieve";
+import {
+  executeLearningToolCall,
+  LearningToolContext,
+  maxLearningToolCallsPerRequest,
+} from "@/lib/agent/tools/learningTools";
+import { responseLearningTools } from "@/lib/agent/tools/responseTools";
 
 const chatRequestSchema = z.object({
+  conversationId: z.string().cuid(),
   scenario: z.string().min(1).max(120),
   messages: z
     .array(
@@ -56,7 +73,10 @@ Respond naturally rather than sounding like a generic chatbot.
 Identify useful mistakes and learning opportunities from the learner's latest message.
 Keep feedback brief and practical.
 Do not invent mistakes when the user's sentence is correct.
-If there are no useful corrections, return empty feedback arrays.`;
+If there are no useful corrections, return empty feedback arrays.
+You have access to a small set of read-only learning tools. Use them only when they provide information unavailable in the current context.
+Never reveal internal tool names or implementation details. Never claim a tool was used unless it actually was.
+Do not turn every conversation into an analysis.`;
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -80,19 +100,73 @@ export async function POST(request: Request) {
     );
   }
 
-  const { messages, scenario } = parsedRequest.data;
+  const { conversationId, messages, scenario } = parsedRequest.data;
 
   try {
-    const response = await openai.responses.parse({
-      model: "gpt-5.5",
-      instructions: `${systemInstruction}\n\nSelected practice scenario: ${scenario}`,
+    const userId = await getCurrentUserId();
+    if (!userId) return Response.json({ error: "You must be signed in." }, { status: 401 });
+    const conversation = await db.conversation.findFirst({
+      where: { id: conversationId, userId },
+      select: { id: true },
+    });
+
+    if (!conversation) {
+      return Response.json({ error: "Conversation not found." }, { status: 404 });
+    }
+
+    const learnerProfile = await getLearnerProfile(userId);
+
+    const latestMessage = messages[messages.length - 1];
+
+    if (latestMessage.role !== "user") {
+      return Response.json(
+        { error: "The latest message must be from the learner." },
+        { status: 400 },
+      );
+    }
+
+    const personalizationContext = formatPersonalizationContext(
+      buildPersonalizationContext(learnerProfile),
+    );
+    const learnerContext = buildPersonalizationContext(learnerProfile);
+    const retrievedKnowledge = retrieveKnowledge({
+      query: latestMessage.content,
+      language: "english",
+      level: learnerContext.approximateLevel,
+      scenario,
+    });
+    const retrievedContext = formatRetrievedKnowledge(retrievedKnowledge);
+
+    if (process.env.NODE_ENV !== "production" && retrievedKnowledge.length > 0) {
+      console.info("RAG retrieval", {
+        conversationId,
+        documentIds: retrievedKnowledge.map((document) => document.id),
+      });
+    }
+
+    await db.message.create({
+      data: {
+        conversationId,
+        role: "user",
+        content: latestMessage.content,
+      },
+    });
+
+    const instructions = [
+      systemInstruction,
+      `Selected practice scenario: ${scenario}`,
+      personalizationContext,
+      retrievedContext || "No additional learning reference is needed for this message.",
+      "Use this context quietly to personalize the conversation. Keep the exchange natural, and do not mention this profile or its data to the learner.",
+      "Retrieved learning reference is optional reference material. Use it only when relevant, do not repeat it blindly, and never mention retrieval, documents, RAG, or internal systems.",
+    ].join("\n\n");
+    const response = await requestChatResponse({
       input: messages.map((message) => ({
         role: message.role,
         content: message.content,
       })),
-      text: {
-        format: zodTextFormat(learningFeedbackSchema, "learning_feedback"),
-      },
+      instructions,
+      toolContext: { learnerProfile, scenario },
     });
     const parsedResponse = learningFeedbackSchema.safeParse(
       response.output_parsed,
@@ -104,6 +178,14 @@ export async function POST(request: Request) {
         { status: 502 },
       );
     }
+
+    await db.message.create({
+      data: {
+        conversationId,
+        role: "assistant",
+        content: parsedResponse.data.message,
+      },
+    });
 
     return Response.json({
       message: parsedResponse.data.message,
@@ -118,4 +200,72 @@ export async function POST(request: Request) {
       { status: 500 },
     );
   }
+}
+
+async function requestChatResponse({
+  input,
+  instructions,
+  toolContext,
+}: {
+  input: { role: "user" | "assistant"; content: string }[];
+  instructions: string;
+  toolContext: LearningToolContext;
+}) {
+  const firstResponse = await openai.responses.parse({
+    model: "gpt-5.5",
+    instructions,
+    input,
+    tools: responseLearningTools,
+    text: {
+      format: zodTextFormat(learningFeedbackSchema, "learning_feedback"),
+    },
+  });
+  const toolCalls = firstResponse.output.filter(
+    (item): item is ParsedResponseFunctionToolCall => item.type === "function_call",
+  );
+
+  if (toolCalls.length === 0) {
+    return firstResponse;
+  }
+
+  if (toolCalls.length > maxLearningToolCallsPerRequest) {
+    console.warn("Learning tool limit reached", { requested: toolCalls.length });
+  }
+
+  const toolCall = toolCalls[0];
+  const parsedArguments = JSON.parse(toolCall.arguments) as unknown;
+  const toolResult = executeLearningToolCall(
+    toolCall.name,
+    parsedArguments,
+    toolContext,
+  );
+
+  if (process.env.NODE_ENV !== "production") {
+    console.info("Learning tool call", {
+      name: toolCall.name,
+      validationSucceeded: toolResult.ok,
+      executionSucceeded: toolResult.ok,
+    });
+  }
+
+  const followUpInput = [
+    ...input,
+    toolCall,
+    {
+      type: "function_call_output" as const,
+      call_id: toolCall.call_id,
+      output: JSON.stringify(
+        toolResult.ok ? toolResult.result : { error: toolResult.error },
+      ),
+    },
+  ];
+
+  return openai.responses.parse({
+    model: "gpt-5.5",
+    instructions,
+    input: followUpInput,
+    text: {
+      format: zodTextFormat(learningFeedbackSchema, "learning_feedback"),
+    },
+  });
 }
